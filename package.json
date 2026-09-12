@@ -1,0 +1,92 @@
+{
+  "name": "pwrgit",
+  "displayName": "pwrgit",
+  "description": "A Git tool window: branch explorer + commit graph in the bottom panel.",
+  "version": "1.0.0",
+  "publisher": "Bean41",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Bean41Dev/vsc-pwrgit.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Bean41Dev/vsc-pwrgit/issues"
+  },
+  "homepage": "https://github.com/Bean41Dev/vsc-pwrgit#readme",
+  "keywords": [
+    "git",
+    "git graph",
+    "git log",
+    "source control",
+    "commit graph"
+  ],
+  "galleryBanner": {
+    "color": "#21262d",
+    "theme": "dark"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "SCM Providers"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "pwrgit",
+          "title": "pwrgit",
+          "icon": "$(git-branch)"
+        }
+      ]
+    },
+    "views": {
+      "pwrgit": [
+        {
+          "type": "webview",
+          "id": "pwrgit.view",
+          "name": "pwrgit"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "pwrgit.refresh",
+        "title": "pwrgit: Refresh",
+        "icon": "$(refresh)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "pwrgit.refresh",
+          "when": "view == pwrgit.view",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "test": "node --test \"test/**/*.test.ts\"",
+    "vscode:prepublish": "node esbuild.js --production",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.0.0",
+    "esbuild": "^0.23.0",
+    "typescript": "^5.5.0"
+  },
+  "allowScripts": {
+    "esbuild@0.23.1": true
+  }
+}
