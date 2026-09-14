@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.1
+
+- Resizable branch-explorer and Changed-Files panes; widths are remembered.
+- Collapsible **Local / Remote / Tags** sections (click the heading); Tags collapsed by default.
+- Tag sort toggle in the Tags header — newest-first (default) or by name.
+- Current branch marked with a colored branch glyph instead of a dot: green (clean),
+  yellow (uncommitted changes), blue (unpushed commits).
+- "On branch: <name>" label above the commit message box.
+- Removed the decorative prefix on tag names.
+
 ## 1.0.0
 
 Initial release — a Git tool window in the VS Code bottom panel.

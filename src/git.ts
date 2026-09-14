@@ -381,21 +381,28 @@ export interface Tag {
   name: string;
   /** Short hash of the commit the tag points to (dereferenced for annotated tags). */
   shortHash: string;
+  /** Creator date (tagger date for annotated, commit date for lightweight), unix seconds. */
+  timestamp: number;
 }
 
 async function getTags(root: string): Promise<Tag[]> {
-  const fmt = ["%(refname:short)", "%(objectname:short)", "%(*objectname:short)"].join(FS);
+  const fmt = [
+    "%(refname:short)",
+    "%(objectname:short)",
+    "%(*objectname:short)",
+    "%(creatordate:unix)",
+  ].join(FS);
   const out = await git(root, [
     "for-each-ref",
     `--format=${fmt}`,
-    "--sort=-v:refname",
+    "--sort=-creatordate",
     "refs/tags",
   ]);
   const tags: Tag[] = [];
   for (const line of out.split("\n")) {
     if (!line.trim()) continue;
-    const [name, obj, deref] = line.split(FS);
-    tags.push({ name, shortHash: deref || obj });
+    const [name, obj, deref, date] = line.split(FS);
+    tags.push({ name, shortHash: deref || obj, timestamp: Number(date) || 0 });
   }
   return tags;
 }

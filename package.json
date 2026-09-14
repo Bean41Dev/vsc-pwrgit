@@ -2,7 +2,7 @@
   "name": "pwrgit",
   "displayName": "pwrgit",
   "description": "A Git tool window: branch explorer + commit graph in the bottom panel.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "Bean41",
   "license": "MIT",
   "icon": "media/icon.png",
