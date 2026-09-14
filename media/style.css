@@ -230,12 +230,32 @@ body {
   width: 240px;
   min-width: 140px;
   overflow-y: auto;
-  border-right: 1px solid var(--border);
 }
 
-#divider {
-  width: 1px;
+#divider,
+#divider-details {
+  flex: 0 0 auto;
+  width: 5px;
+  cursor: col-resize;
   background: var(--border);
+  background-clip: content-box;
+  border-inline: 2px solid transparent;
+}
+
+#divider:hover,
+#divider-details:hover,
+body.resizing #divider,
+body.resizing #divider-details {
+  background-color: var(--vscode-focusBorder, #007acc);
+}
+
+#divider-details.hidden {
+  display: none;
+}
+
+body.resizing {
+  cursor: col-resize;
+  user-select: none;
 }
 
 #log {
@@ -400,22 +420,52 @@ body {
   padding: 4px 0;
 }
 
-.tag-row .branch-name::before {
-  content: "\25C8 ";
-  opacity: 0.55;
-  font-size: 9px;
-}
-
 .tag-row .branch-name {
   color: var(--vscode-descriptionForeground, #8b949e);
   opacity: 0.75;
 }
 
 .branch-group-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   padding: 2px 8px;
   font-size: 11px;
   opacity: 0.6;
   text-transform: uppercase;
+  cursor: pointer;
+  user-select: none;
+}
+
+.branch-group-title:hover {
+  opacity: 0.9;
+}
+
+.group-chevron {
+  flex: 0 0 auto;
+  width: 12px;
+  text-align: center;
+  font-size: 9px;
+}
+
+.tag-sort-btn {
+  margin-left: auto;
+  flex: 0 0 auto;
+  padding: 0 5px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  text-transform: none;
+  opacity: 0.85;
+}
+
+.tag-sort-btn:hover {
+  opacity: 1;
+  background: var(--vscode-toolbar-hoverBackground, rgba(255, 255, 255, 0.08));
 }
 
 .branch {
@@ -443,12 +493,24 @@ body {
   font-weight: 700;
 }
 
-.branch.current::before {
-  content: "\25CF";
-  color: var(--vscode-gitDecoration-modifiedResourceForeground, #4daafc);
-  margin-left: -12px;
-  margin-right: 2px;
-  font-size: 9px;
+.cur-branch-icon {
+  flex: 0 0 auto;
+  width: 12px;
+  font-weight: 700;
+  text-align: left;
+  overflow: visible;
+}
+
+.cur-branch-icon.cur-clean {
+  color: var(--vscode-charts-green, #3fb950);
+}
+
+.cur-branch-icon.cur-dirty {
+  color: var(--vscode-charts-yellow, #d7b600);
+}
+
+.cur-branch-icon.cur-outgoing {
+  color: var(--vscode-charts-blue, #4daafc);
 }
 
 .branch-name {
@@ -664,7 +726,6 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-left: 1px solid var(--border);
 }
 
 #details.hidden {
@@ -822,6 +883,16 @@ body {
   gap: 6px;
   padding: 8px 10px;
   border-bottom: 1px solid var(--border);
+}
+
+#commit-branch {
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+#commit-branch-name {
+  font-weight: 600;
+  color: var(--vscode-foreground);
 }
 
 #commit-message {

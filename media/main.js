@@ -12,11 +12,15 @@
   const fileList = /** @type {HTMLElement} */ (document.getElementById("file-list"));
   const ciHash = /** @type {HTMLElement} */ (document.getElementById("ci-hash"));
   const ciMsg = /** @type {HTMLElement} */ (document.getElementById("ci-msg"));
+  const branchesEl = /** @type {HTMLElement} */ (document.getElementById("branches"));
+  const divider = /** @type {HTMLElement} */ (document.getElementById("divider"));
+  const dividerDetails = /** @type {HTMLElement} */ (document.getElementById("divider-details"));
   const consoleLogEl = /** @type {HTMLElement} */ (document.getElementById("console-log"));
   const consoleBadge = /** @type {HTMLElement} */ (document.getElementById("console-badge"));
   const changesList = /** @type {HTMLElement} */ (document.getElementById("changes-list"));
   const changesCount = /** @type {HTMLElement} */ (document.getElementById("changes-count"));
   const commitMessage = /** @type {HTMLTextAreaElement} */ (document.getElementById("commit-message"));
+  const commitBranchName = /** @type {HTMLElement} */ (document.getElementById("commit-branch-name"));
   const commitBtn = /** @type {HTMLButtonElement} */ (document.getElementById("commit-btn"));
   const amendCheck = /** @type {HTMLButtonElement} */ (document.getElementById("amend-check"));
   const rollbackBtn = /** @type {HTMLButtonElement} */ (document.getElementById("rollback-btn"));
@@ -119,6 +123,8 @@
       renderChanges(msg.changes);
     } else if (msg.type === "error") {
       showError(msg.message);
+    } else if (msg.type === "layoutState") {
+      applyLayout(msg);
     }
   });
 
@@ -130,6 +136,7 @@
 
   function render(data) {
     currentBranch = data.currentBranch;
+    commitBranchName.textContent = data.currentBranch || "detached HEAD";
     headMessage = data.headMessage || "";
     currentCommits = data.commits;
     remoteRefs = new Set(data.branches.filter((b) => b.isRemote).map((b) => b.name));
@@ -187,6 +194,10 @@
 
   /** Collapsed folder keys ("<group>:<path>"); absent = expanded (default). */
   const collapsedDirs = new Set();
+  /** Collapsed top-level group keys ("local"|"remote"|"tag"). Tags start collapsed. */
+  const collapsedGroups = new Set(["tag"]);
+  /** Tag sort order: "date" (newest first, default) or "name" (Z->A). */
+  let tagSort = "date";
   /** Last repo data, so a folder toggle can re-render without a round trip. */
   let lastBranchData = null;
 
@@ -204,17 +215,19 @@
 
   /** Build a path trie from refs, splitting each name on "/". */
   function buildRefTree(items) {
-    const root = { name: "", path: "", children: new Map(), ref: null };
+    const root = { name: "", path: "", children: new Map(), ref: null, date: 0 };
     for (const item of items) {
+      const ts = Number(item.timestamp) || 0;
       let node = root;
       let path = "";
       for (const seg of item.name.split("/").filter(Boolean)) {
         path = path ? `${path}/${seg}` : seg;
         let child = node.children.get(seg);
         if (!child) {
-          child = { name: seg, path, children: new Map(), ref: null };
+          child = { name: seg, path, children: new Map(), ref: null, date: 0 };
           node.children.set(seg, child);
         }
+        if (ts > child.date) child.date = ts; // node date = newest ref in its subtree
         node = child;
       }
       node.ref = item; // an exact ref name lands on this node as a leaf
@@ -225,32 +238,69 @@
   function refGroup(title, keyPrefix, items, renderLeaf) {
     const group = document.createElement("div");
     group.className = "branch-group";
+    const collapsed = collapsedGroups.has(keyPrefix);
     const heading = document.createElement("div");
     heading.className = "branch-group-title";
-    heading.textContent = `${title} (${items.length})`;
+    const chevron = document.createElement("span");
+    chevron.className = "group-chevron";
+    chevron.textContent = collapsed ? "\u25B8" : "\u25BE";
+    const label = document.createElement("span");
+    label.textContent = `${title} (${items.length})`;
+    heading.appendChild(chevron);
+    heading.appendChild(label);
+    heading.addEventListener("click", () => {
+      if (collapsedGroups.has(keyPrefix)) collapsedGroups.delete(keyPrefix);
+      else collapsedGroups.add(keyPrefix);
+      renderBranches(lastBranchData);
+      updateFilterUI();
+    });
+    if (keyPrefix === "tag") heading.appendChild(tagSortButton());
     group.appendChild(heading);
-    renderRefTree(group, buildRefTree(items), 0, keyPrefix, renderLeaf);
+    const sortMode = keyPrefix === "tag" ? tagSort : null;
+    if (!collapsed) renderRefTree(group, buildRefTree(items), 0, keyPrefix, renderLeaf, sortMode);
     return group;
   }
 
-  /** Emit a node's children: folders first, then leaves, alphabetical within each. */
-  function renderRefTree(container, node, depth, keyPrefix, renderLeaf) {
-    const children = [...node.children.values()].sort((a, b) => {
-      const aFolder = a.children.size > 0;
-      const bFolder = b.children.size > 0;
-      if (aFolder !== bFolder) return aFolder ? -1 : 1;
-      return a.name.localeCompare(b.name);
+  function tagSortButton() {
+    const btn = document.createElement("button");
+    btn.className = "tag-sort-btn";
+    btn.textContent = tagSort === "name" ? "\u2193az" : "\u2193date";
+    btn.title =
+      tagSort === "name"
+        ? "Tags sorted by name (Z\u2192A) \u2014 click to sort by date"
+        : "Tags sorted by date (newest first) \u2014 click to sort by name";
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation(); // don't toggle the group collapse
+      tagSort = tagSort === "date" ? "name" : "date";
+      renderBranches(lastBranchData);
+      updateFilterUI();
     });
+    return btn;
+  }
+
+  /** Emit a node's children in sort order; recurses into expanded folders. */
+  function renderRefTree(container, node, depth, keyPrefix, renderLeaf, sortMode) {
+    const children = [...node.children.values()].sort((a, b) => compareNodes(a, b, sortMode));
     for (const child of children) {
       if (child.children.size > 0) {
         const key = `${keyPrefix}:${child.path}`;
         const collapsed = collapsedDirs.has(key);
         container.appendChild(dirRow(child, depth, key, collapsed));
-        if (!collapsed) renderRefTree(container, child, depth + 1, keyPrefix, renderLeaf);
+        if (!collapsed) renderRefTree(container, child, depth + 1, keyPrefix, renderLeaf, sortMode);
       }
       // A name that is both a folder and a ref shows as its own leaf too.
       if (child.ref) container.appendChild(renderLeaf(child.ref, child.name, depth));
     }
+  }
+
+  /** Sibling order: "date"/"name" sort descending; default groups folders first, name asc. */
+  function compareNodes(a, b, sortMode) {
+    if (sortMode === "date") return b.date - a.date || a.name.localeCompare(b.name);
+    if (sortMode === "name") return b.name.localeCompare(a.name);
+    const aFolder = a.children.size > 0;
+    const bFolder = b.children.size > 0;
+    if (aFolder !== bFolder) return aFolder ? -1 : 1;
+    return a.name.localeCompare(b.name);
   }
 
   function dirRow(node, depth, key, collapsed) {
@@ -280,9 +330,19 @@
     row.className = "branch" + (b.isCurrent ? " current" : "");
     row.style.setProperty("--depth", String(depth));
     row.dataset.name = b.name;
-    const spacer = document.createElement("span");
-    spacer.className = "leaf-indent";
-    row.appendChild(spacer);
+    if (b.isCurrent) {
+      const dirty = !!(lastBranchData && lastBranchData.changes && lastBranchData.changes.length);
+      const icon = document.createElement("span");
+      icon.className =
+        "cur-branch-icon " +
+        (dirty ? "cur-dirty" : b.ahead > 0 ? "cur-outgoing" : "cur-clean");
+      icon.textContent = "\u2387";
+      row.appendChild(icon);
+    } else {
+      const spacer = document.createElement("span");
+      spacer.className = "leaf-indent";
+      row.appendChild(spacer);
+    }
     const nameSpan = document.createElement("span");
     nameSpan.className = "branch-name";
     nameSpan.textContent = label;
@@ -547,6 +607,7 @@
 
   function hideDetails() {
     details.classList.add("hidden");
+    dividerDetails.classList.add("hidden");
     fileList.innerHTML = "";
   }
 
@@ -571,6 +632,7 @@
       fileList.appendChild(fileRow(f));
     }
     details.classList.remove("hidden");
+    dividerDetails.classList.remove("hidden");
   }
 
   function fileRow(f) {
@@ -777,6 +839,39 @@
       vscode.postMessage({ type: "setIntegration", mode: integration });
     });
   }
+
+  // ---- Pane resizing (persisted widths) ----
+  function applyLayout(msg) {
+    if (typeof msg.branchesWidth === "number") branchesEl.style.width = msg.branchesWidth + "px";
+    if (typeof msg.detailsWidth === "number") details.style.width = msg.detailsWidth + "px";
+  }
+
+  /** Drag `handle` to resize `panel`; sign +1 grows rightward, -1 grows leftward. */
+  function initResizer(handle, panel, sign, minW, key) {
+    handle.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      const viewLog = /** @type {HTMLElement} */ (document.getElementById("view-log"));
+      const startX = e.clientX;
+      const startW = panel.getBoundingClientRect().width;
+      const maxW = Math.max(minW, viewLog.clientWidth - 160);
+      const onMove = (ev) => {
+        const w = Math.max(minW, Math.min(maxW, startW + sign * (ev.clientX - startX)));
+        panel.style.width = w + "px";
+      };
+      const onUp = () => {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+        document.body.classList.remove("resizing");
+        vscode.postMessage({ type: "setLayout", [key]: Math.round(panel.getBoundingClientRect().width) });
+      };
+      document.body.classList.add("resizing");
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    });
+  }
+
+  initResizer(divider, branchesEl, 1, 140, "branchesWidth");
+  initResizer(dividerDetails, details, -1, 180, "detailsWidth");
 
   function renderStashes(stashes) {
     stashList.innerHTML = "";

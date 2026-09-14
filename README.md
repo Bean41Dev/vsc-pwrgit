@@ -4,7 +4,7 @@ A Git tool window for VS Code, living in the **bottom panel**. A single
 integrated view: branch explorer on the left, a colored commit graph on the right, plus
 a working-tree Changes view and a raw command Console — all driven by direct `git` calls.
 
-> Status: early but functional (`v1.0.0`). Built for day-to-day local Git work.
+> Status: early but functional (`v1.0.1`). Built for day-to-day local Git work.
 
 ## Layout
 

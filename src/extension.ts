@@ -63,6 +63,8 @@ class PwrgitViewProvider implements vscode.WebviewViewProvider {
   private filter: RepoFilter = { branch: null, search: "" };
   private integration: "merge" | "rebase";
   private commitLimit = 500;
+  private branchesWidth = 240;
+  private detailsWidth = 320;
   private busyCount = 0;
   private busyShown = false;
   private busyTimer?: NodeJS.Timeout;
@@ -74,6 +76,14 @@ class PwrgitViewProvider implements vscode.WebviewViewProvider {
     private readonly state: vscode.Memento
   ) {
     this.integration = state.get("integration") === "rebase" ? "rebase" : "merge";
+    const savedBranches = Number(this.state.get("branchesWidth"));
+    if (Number.isFinite(savedBranches) && savedBranches >= 140) {
+      this.branchesWidth = Math.min(1000, savedBranches);
+    }
+    const savedDetails = Number(this.state.get("detailsWidth"));
+    if (Number.isFinite(savedDetails) && savedDetails >= 180) {
+      this.detailsWidth = Math.min(1000, savedDetails);
+    }
   }
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
@@ -92,6 +102,11 @@ class PwrgitViewProvider implements vscode.WebviewViewProvider {
           }
           this.post({ type: "filterState", filter: this.filter });
           this.post({ type: "integrationState", mode: this.integration });
+          this.post({
+            type: "layoutState",
+            branchesWidth: this.branchesWidth,
+            detailsWidth: this.detailsWidth,
+          });
         }
         void this.refresh();
       } else if (msg?.type === "selectCommit") {
@@ -129,6 +144,15 @@ class PwrgitViewProvider implements vscode.WebviewViewProvider {
       } else if (msg?.type === "loadMore") {
         this.commitLimit += 500;
         void this.refresh();
+      } else if (msg?.type === "setLayout") {
+        if (typeof msg.branchesWidth === "number") {
+          this.branchesWidth = Math.max(140, Math.min(1000, Math.round(msg.branchesWidth)));
+          void this.state.update("branchesWidth", this.branchesWidth);
+        }
+        if (typeof msg.detailsWidth === "number") {
+          this.detailsWidth = Math.max(180, Math.min(1000, Math.round(msg.detailsWidth)));
+          void this.state.update("detailsWidth", this.detailsWidth);
+        }
       }
     });
 
@@ -846,6 +870,7 @@ class PwrgitViewProvider implements vscode.WebviewViewProvider {
           </div>
           <div id="commit-list"></div>
         </main>
+        <div id="divider-details" class="hidden"></div>
         <aside id="details" class="hidden">
           <div class="pane-header" id="details-header">Changed Files</div>
           <div id="commit-info">
@@ -869,6 +894,7 @@ class PwrgitViewProvider implements vscode.WebviewViewProvider {
         </div>
         <div class="subview active" id="changes-pane">
           <div id="commit-box">
+            <div id="commit-branch">On branch: <span id="commit-branch-name"></span></div>
             <textarea id="commit-message" rows="1" placeholder="Commit message"></textarea>
             <div id="commit-actions">
               <div class="split-btn">
